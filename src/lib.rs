@@ -163,7 +163,10 @@ impl Build {
             // Nothing related to zlib please
             .arg("no-comp")
             .arg("no-zlib")
-            .arg("no-zlib-dynamic");
+            .arg("no-zlib-dynamic")
+            .arg("enable-ec_elgamal")
+            .arg("enable-zuc")
+            .arg("enable-ntls");
 
         if cfg!(feature = "weak-crypto") {
             configure
