@@ -6,7 +6,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 pub fn source_dir() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("openssl")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tongsuo")
 }
 
 pub fn version() -> &'static str {
@@ -30,7 +30,7 @@ pub struct Artifacts {
 impl Build {
     pub fn new() -> Build {
         Build {
-            out_dir: env::var_os("OUT_DIR").map(|s| PathBuf::from(s).join("openssl-build")),
+            out_dir: env::var_os("OUT_DIR").map(|s| PathBuf::from(s).join("tongsuo-build")),
             target: env::var("TARGET").ok(),
             host: env::var("HOST").ok(),
         }
@@ -550,7 +550,6 @@ fn apply_patches_musl(target: &str, inner: &Path) {
     let buf = fs::read_to_string(&path).unwrap();
 
     let buf = buf
-        .replace("asm/unistd.h", "sys/syscall.h")
         .replace("__NR_getrandom", "SYS_getrandom");
 
     fs::write(path, buf).unwrap();

@@ -1,7 +1,6 @@
 [package]
 name = "testcrate"
 version = "0.1.0"
-authors = ["Alex Crichton <alex@alexcrichton.com>"]
 
 [dependencies]
 libc = "0.2"
@@ -16,4 +15,4 @@ required-features = ['package']
 package = ['tar', 'flate2']
 
 [build-dependencies]
-openssl-src = { path = ".." }
+tongsuo-src = { path = ".." }

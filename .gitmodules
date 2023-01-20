@@ -1,0 +1,3 @@
+[submodule "tongsuo"]
+	path = tongsuo
+	url = https://github.com/Tongsuo-Project/Tongsuo.git
