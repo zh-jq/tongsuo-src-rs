@@ -33,7 +33,7 @@ if [ "$1" = "x86_64-unknown-linux-gnu" ] ; then
     exit 1
   fi
   rm "$crate"
-  cd target/ci/package/openssl-src-*
+  cd target/ci/package/tongsuo-src-*
   cp -r "$testcrate_dir" .
   cargo test --manifest-path "testcrate/Cargo.toml" --target $1 -vv
 fi

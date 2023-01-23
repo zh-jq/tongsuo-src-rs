@@ -10,7 +10,7 @@ set -ex
 
 docker build \
   --rm \
-  --tag openssl-src-ci \
+  --tag tongsuo-src-ci \
   ci/docker/$1
 
 docker run \
@@ -21,6 +21,6 @@ docker run \
   --volume $HOME/.cargo:/cargo \
   --env CARGO_HOME=/cargo \
   --workdir /usr/code \
-  openssl-src-ci \
+  tongsuo-src-ci \
   bash -c "PATH=\$PATH:/rust/bin ci/run.sh $target"
 
