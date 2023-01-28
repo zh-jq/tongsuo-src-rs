@@ -1,6 +1,6 @@
 [package]
 name = "tongsuo-p832-src"
-version = "832.0.2+8.3.2"
+version = "832.0.3+8.3.2"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 repository = "https://github.com/zh-jq/tongsuo-src-rs.git"
