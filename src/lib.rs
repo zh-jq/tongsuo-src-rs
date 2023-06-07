@@ -1,6 +1,7 @@
 extern crate cc;
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -129,7 +130,6 @@ impl Build {
         let inner_dir = build_dir.join("src");
         fs::create_dir_all(&inner_dir).unwrap();
         cp_r(&source_dir(), &inner_dir);
-        apply_patches(target, &inner_dir);
 
         let perl_program =
             env::var("OPENSSL_SRC_PERL").unwrap_or(env::var("PERL").unwrap_or("perl".to_string()));
@@ -159,47 +159,39 @@ impl Build {
             // Should be off by default on OpenSSL 1.1.0, but let's be extra sure
             .arg("no-ssl3")
             // No need to build tests, we won't run them anyway
-            .arg("no-unit-test")
+            .arg("no-tests")
             // Nothing related to zlib please
             .arg("no-comp")
             .arg("no-zlib")
             .arg("no-zlib-dynamic")
-            .arg("enable-ec_elgamal")
-            .arg("enable-zuc")
-            .arg("enable-ntls");
+            .arg("enable-ntls")
+            // Avoid multilib-postfix for build targets that specify it
+            .arg("--libdir=lib");
+
+        if cfg!(not(feature = "legacy")) {
+            configure.arg("no-legacy");
+        }
 
         if cfg!(feature = "weak-crypto") {
             configure
-                .arg("enable-md2")
                 .arg("enable-rc5")
                 .arg("enable-weak-ssl-ciphers");
         } else {
             configure
-                .arg("no-md2")
                 .arg("no-rc5")
                 .arg("no-weak-ssl-ciphers");
         }
 
-        if cfg!(not(feature = "camellia")) {
-            configure.arg("no-camellia");
-        }
-
-        if cfg!(not(feature = "idea")) {
-            configure.arg("no-idea");
-        }
-
-        if cfg!(not(feature = "seed")) {
-            configure.arg("no-seed");
-        }
-
-        if target.contains("musl") || target.contains("windows") {
-            // Engine module fails to compile on musl (it needs linux/version.h
+        if target.contains("musl") {
+            // This actually fails to compile on musl (it needs linux/version.h
             // right now) but we don't actually need this most of the time.
-            // API of engine.c ld fail in Windows.
-            // Disable engine module unless force-engine feature specified
-            if !cfg!(feature = "force-engine") {
-                configure.arg("no-engine");
-            }
+            configure.arg("no-engine");
+        } else if target.contains("windows") {
+            // We can build the engine feature, but the build doesn't seem
+            // to correctly pick up crypt32.lib functions such as
+            // `__imp_CertOpenStore` when building the capieng engine.
+            // Let's disable just capieng.
+            configure.arg("no-capieng");
         }
 
         if target.contains("musl") {
@@ -241,7 +233,10 @@ impl Build {
             "aarch64-unknown-freebsd" => "BSD-generic64",
             "aarch64-unknown-linux-gnu" => "linux-aarch64",
             "aarch64-unknown-linux-musl" => "linux-aarch64",
+            "aarch64-unknown-netbsd" => "BSD-generic64",
+            "aarch64_be-unknown-netbsd" => "BSD-generic64",
             "aarch64-pc-windows-msvc" => "VC-WIN64-ARM",
+            "aarch64-uwp-windows-msvc" => "VC-WIN64-ARM-UWP",
             "arm-linux-androideabi" => "linux-armv4",
             "armv7-linux-androideabi" => "linux-armv4",
             "arm-unknown-linux-gnueabi" => "linux-armv4",
@@ -251,21 +246,27 @@ impl Build {
             "armv5te-unknown-linux-gnueabi" => "linux-armv4",
             "armv5te-unknown-linux-musleabi" => "linux-armv4",
             "armv6-unknown-freebsd" => "BSD-generic32",
-            "armv7-unknown-freebsd" => "BSD-generic32",
+            "armv7-unknown-freebsd" => "BSD-armv4",
             "armv7-unknown-linux-gnueabi" => "linux-armv4",
             "armv7-unknown-linux-musleabi" => "linux-armv4",
             "armv7-unknown-linux-gnueabihf" => "linux-armv4",
             "armv7-unknown-linux-musleabihf" => "linux-armv4",
+            "armv7-unknown-netbsd-eabihf" => "BSD-generic32",
             "asmjs-unknown-emscripten" => "gcc",
             "i586-unknown-linux-gnu" => "linux-elf",
             "i586-unknown-linux-musl" => "linux-elf",
+            "i586-unknown-netbsd" => "BSD-x86-elf",
             "i686-apple-darwin" => "darwin-i386-cc",
             "i686-linux-android" => "linux-elf",
             "i686-pc-windows-gnu" => "mingw",
             "i686-pc-windows-msvc" => "VC-WIN32",
             "i686-unknown-freebsd" => "BSD-x86-elf",
+            "i686-unknown-haiku" => "haiku-x86",
             "i686-unknown-linux-gnu" => "linux-elf",
             "i686-unknown-linux-musl" => "linux-elf",
+            "i686-unknown-netbsd" => "BSD-x86-elf",
+            "i686-uwp-windows-msvc" => "VC-WIN32-UWP",
+            "loongarch64-unknown-linux-gnu" => "linux64-loongarch64",
             "mips-unknown-linux-gnu" => "linux-mips32",
             "mips-unknown-linux-musl" => "linux-mips32",
             "mips64-unknown-linux-gnuabi64" => "linux64-mips64",
@@ -274,28 +275,36 @@ impl Build {
             "mips64el-unknown-linux-muslabi64" => "linux64-mips64",
             "mipsel-unknown-linux-gnu" => "linux-mips32",
             "mipsel-unknown-linux-musl" => "linux-mips32",
-            "powerpc-unknown-freebsd" => "BSD-generic32",
+            "powerpc-unknown-freebsd" => "BSD-ppc",
             "powerpc-unknown-linux-gnu" => "linux-ppc",
-            "powerpc64-unknown-freebsd" => "BSD-generic64",
+            "powerpc-unknown-netbsd" => "BSD-generic32",
+            "powerpc64-unknown-freebsd" => "BSD-ppc64",
             "powerpc64-unknown-linux-gnu" => "linux-ppc64",
             "powerpc64-unknown-linux-musl" => "linux-ppc64",
-            "powerpc64le-unknown-freebsd" => "BSD-generic64",
+            "powerpc64le-unknown-freebsd" => "BSD-ppc64le",
             "powerpc64le-unknown-linux-gnu" => "linux-ppc64le",
             "powerpc64le-unknown-linux-musl" => "linux-ppc64le",
+            "riscv64gc-unknown-freebsd" => "BSD-riscv64",
             "riscv64gc-unknown-linux-gnu" => "linux-generic64",
             "s390x-unknown-linux-gnu" => "linux64-s390x",
+            "sparc64-unknown-netbsd" => "BSD-generic64",
             "s390x-unknown-linux-musl" => "linux64-s390x",
+            "sparcv9-sun-solaris" => "solaris64-sparcv9-gcc",
+            "thumbv7a-uwp-windows-msvc" => "VC-WIN32-ARM-UWP",
             "x86_64-apple-darwin" => "darwin64-x86_64-cc",
             "x86_64-linux-android" => "linux-x86_64",
+            "x86_64-linux" => "linux-x86_64",
             "x86_64-pc-windows-gnu" => "mingw64",
             "x86_64-pc-windows-msvc" => "VC-WIN64A",
             "x86_64-unknown-freebsd" => "BSD-x86_64",
             "x86_64-unknown-dragonfly" => "BSD-x86_64",
+            "x86_64-unknown-haiku" => "haiku-x86_64",
             "x86_64-unknown-illumos" => "solaris64-x86_64-gcc",
             "x86_64-unknown-linux-gnu" => "linux-x86_64",
             "x86_64-unknown-linux-musl" => "linux-x86_64",
             "x86_64-unknown-openbsd" => "BSD-x86_64",
             "x86_64-unknown-netbsd" => "BSD-x86_64",
+            "x86_64-uwp-windows-msvc" => "VC-WIN64A-UWP",
             "x86_64-sun-solaris" => "solaris64-x86_64-gcc",
             "wasm32-unknown-emscripten" => "gcc",
             "wasm32-unknown-unknown" => "gcc",
@@ -325,18 +334,22 @@ impl Build {
             // prefix, we unset `CROSS_COMPILE` for `./Configure`.
             configure.env_remove("CROSS_COMPILE");
 
-            // Infer ar/ranlib tools from cross compilers if the it looks like
-            // we're doing something like `foo-gcc` route that to `foo-ranlib`
-            // as well.
-            if path.ends_with("-gcc") && !target.contains("unknown-linux-musl") {
-                let path = &path[..path.len() - 4];
-                if env::var_os("RANLIB").is_none() {
-                    configure.env("RANLIB", format!("{}-ranlib", path));
-                }
-                if env::var_os("AR").is_none() {
-                    configure.env("AR", format!("{}-ar", path));
-                }
+            let ar = cc.get_archiver();
+            configure.env("AR", ar.get_program());
+            if ar.get_args().count() != 0 {
+                // On some platforms (like emscripten on windows), the ar to use may not be a
+                // single binary, but instead a multi-argument command like `cmd /c emar.bar`.
+                // We can't convey that through `AR` alone, and so also need to set ARFLAGS.
+                configure.env(
+                    "ARFLAGS",
+                    ar.get_args().collect::<Vec<_>>().join(OsStr::new(" ")),
+                );
             }
+            let ranlib = cc.get_ranlib();
+            // OpenSSL does not support RANLIBFLAGS. Jam the flags in RANLIB.
+            let mut args = vec![ranlib.get_program()];
+            args.extend(ranlib.get_args());
+            configure.env("RANLIB", args.join(OsStr::new(" ")));
 
             // Make sure we pass extra flags like `-ffunction-sections` and
             // other things like ARM codegen flags.
@@ -430,6 +443,44 @@ impl Build {
                 configure.arg("-D__STDC_NO_ATOMICS__");
             }
 
+            if target.contains("wasi") {
+                configure.args([
+                    // Termios isn't available whatsoever on WASM/WASI so we disable that
+                    "no-ui-console",
+                    // WASI doesn't support UNIX sockets so we preemptively disable it
+                    "no-sock",
+                    // WASI doesn't have a concept of syslog, so we disable it
+                    "-DNO_SYSLOG",
+                    // WASI doesn't support (p)threads. Disabling preemptively.
+                    "no-threads",
+                    // WASI/WASM aren't really friends with ASM, so we disable it as well.
+                    "no-asm",
+                    // Disables the AFALG engine (AFALG-ENGine)
+                    // Since AFALG depends on `AF_ALG` support on the linux kernel side
+                    // it makes sense that we can't use it.
+                    "no-afalgeng",
+                    "-DOPENSSL_NO_AFALGENG=1",
+                    // wasm lacks signal support; to enable minimal signal emulation, compile with
+                    // -D_WASI_EMULATED_SIGNAL and link with -lwasi-emulated-signal
+                    // The link argument is output in the `Artifacts::print_cargo_metadata` method
+                    "-D_WASI_EMULATED_SIGNAL",
+                    // WASI lacks process-associated clocks; to enable emulation of the `times` function using the wall
+                    // clock, which isn't sensitive to whether the program is running or suspended, compile with
+                    // -D_WASI_EMULATED_PROCESS_CLOCKS and link with -lwasi-emulated-process-clocks
+                    // The link argument is output in the `Artifacts::print_cargo_metadata` method
+                    "-D_WASI_EMULATED_PROCESS_CLOCKS",
+                    // WASI lacks a true mmap; to enable minimal mmap emulation, compile
+                    // with -D_WASI_EMULATED_MMAN and link with -lwasi-emulated-mman
+                    // The link argument is output in the `Artifacts::print_cargo_metadata` method
+                    "-D_WASI_EMULATED_MMAN",
+                    // WASI lacks process identifiers; to enable emulation of the `getpid` function using a
+                    // placeholder value, which doesn't reflect the host PID of the program, compile with
+                    // -D_WASI_EMULATED_GETPID and link with -lwasi-emulated-getpid
+                    // The link argument is output in the `Artifacts::print_cargo_metadata` method
+                    "-D_WASI_EMULATED_GETPID",
+                ]);
+            }
+
             if target.contains("musl") {
                 // Hack around openssl/openssl#7207 for now
                 configure.arg("-DOPENSSL_NO_SECURE_MEMORY");
@@ -497,21 +548,25 @@ impl Build {
 
     fn run_command(&self, mut command: Command, desc: &str) {
         println!("running {:?}", command);
-        let status = command.status().unwrap();
-        if !status.success() {
-            panic!(
-                "
+        let status = command.status();
+
+        let (status_or_failed, error) = match status {
+            Ok(status) if status.success() => return,
+            Ok(status) => ("Exit status", format!("{}", status)),
+            Err(failed) => ("Failed to execute", format!("{}", failed)),
+        };
+        panic!(
+            "
 
 
 Error {}:
     Command: {:?}
-    Exit status: {}
+    {}: {}
 
 
     ",
-                desc, command, status
-            );
-        }
+            desc, command, status_or_failed, error
+        );
     }
 }
 
@@ -536,26 +591,6 @@ fn cp_r(src: &Path, dst: &Path) {
             fs::copy(&path, &dst).unwrap();
         }
     }
-}
-
-fn apply_patches(target: &str, inner: &Path) {
-    apply_patches_musl(target, inner);
-}
-
-fn apply_patches_musl(target: &str, inner: &Path) {
-    if !target.contains("musl") {
-        return;
-    }
-
-    // Undo part of https://github.com/openssl/openssl/commit/c352bd07ed2ff872876534c950a6968d75ef121e on MUSL
-    // since it doesn't have asm/unistd.h
-    let path = inner.join("crypto/rand/rand_unix.c");
-    let buf = fs::read_to_string(&path).unwrap();
-
-    let buf = buf
-        .replace("__NR_getrandom", "SYS_getrandom");
-
-    fs::write(path, buf).unwrap();
 }
 
 fn sanitize_sh(path: &Path) -> String {
@@ -600,6 +635,11 @@ impl Artifacts {
         println!("cargo:lib={}", self.lib_dir.display());
         if self.target.contains("msvc") {
             println!("cargo:rustc-link-lib=user32");
+        } else if self.target == "wasm32-wasi" {
+            println!("cargo:rustc-link-lib=wasi-emulated-signal");
+            println!("cargo:rustc-link-lib=wasi-emulated-process-clocks");
+            println!("cargo:rustc-link-lib=wasi-emulated-mman");
+            println!("cargo:rustc-link-lib=wasi-emulated-getpid");
         }
     }
 }

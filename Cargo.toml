@@ -1,37 +1,29 @@
 [package]
 name = "tongsuo-src"
-version = "832.0.1+8.3.2"
+version = "840.0.1+8.4.0pre1"
 license = "MIT OR Apache-2.0"
 readme = "README.md"
-repository = "https://github.com/zh-jq/tongsuo-src-rs.git"
+repository = "https://github.com/zh-jq/tongsuo-src-rs"
 description = """
 Source of Tongsuo and logic to build it.
 """
 exclude = [
-  'tongsuo/fuzz/*',
-  'tongsuo/test/*',
+  'tongsuo/fuzz/corpora/*',
+  'tongsuo/test/recipes/*',
 ]
 
 [features]
 default = []
+# Enables compilation of the legacy provider, which must be loaded at runtime to use various
+# uncommon or insecure algorithms.
+legacy = []
 # Enables compilation of some older algorithms: md2 (hash), rc5 (block cypher) and enabled use of
 # some weaker algorithms in SSL connections. These are generally not recommended for use.
 weak-crypto = []
-# Enables compilation of the Camellia symmetric key block cypher. Since hardware acceleration for
-# it is not available on most systems, this is not as used as AES.
-camellia = []
-# Enables compilation of International Data Encryption Algorithm (IDEA), a symmetric key block
-# cypher sometimes used as an AES128 alternative.
-idea = []
-# Enables compilation of SEED, a symmetric key block cypher mostly used in South Korea, but
-# otherwise not widely supported.
-seed = []
-# Forces configuring Engine module support.
-force-engine = []
 
 [workspace]
 members = ['testcrate']
 exclude = ['target']
 
 [dependencies]
-cc = "1.0"
+cc = "1.0.79"
