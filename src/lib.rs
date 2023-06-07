@@ -173,13 +173,9 @@ impl Build {
         }
 
         if cfg!(feature = "weak-crypto") {
-            configure
-                .arg("enable-rc5")
-                .arg("enable-weak-ssl-ciphers");
+            configure.arg("enable-rc5").arg("enable-weak-ssl-ciphers");
         } else {
-            configure
-                .arg("no-rc5")
-                .arg("no-weak-ssl-ciphers");
+            configure.arg("no-rc5").arg("no-weak-ssl-ciphers");
         }
 
         if target.contains("musl") {
