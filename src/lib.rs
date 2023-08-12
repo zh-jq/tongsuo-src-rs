@@ -179,9 +179,12 @@ impl Build {
         }
 
         if target.contains("musl") {
-            // This actually fails to compile on musl (it needs linux/version.h
+            // Engine module fails to compile on musl (it needs linux/version.h
             // right now) but we don't actually need this most of the time.
-            configure.arg("no-engine");
+            // Disable engine module unless force-engine feature specified
+            if !cfg!(feature = "force-engine") {
+                configure.arg("no-engine");
+            }
         } else if target.contains("windows") {
             // We can build the engine feature, but the build doesn't seem
             // to correctly pick up crypt32.lib functions such as
@@ -282,6 +285,8 @@ impl Build {
             "powerpc64le-unknown-linux-musl" => "linux-ppc64le",
             "riscv64gc-unknown-freebsd" => "BSD-riscv64",
             "riscv64gc-unknown-linux-gnu" => "linux-generic64",
+            "riscv64gc-unknown-linux-musl" => "linux-generic64",
+            "riscv64gc-unknown-netbsd" => "BSD-generic64",
             "s390x-unknown-linux-gnu" => "linux64-s390x",
             "sparc64-unknown-netbsd" => "BSD-generic64",
             "s390x-unknown-linux-musl" => "linux64-s390x",
