@@ -23,7 +23,6 @@ pub struct Build {
 pub struct Artifacts {
     include_dir: PathBuf,
     lib_dir: PathBuf,
-    bin_dir: PathBuf,
     libs: Vec<String>,
     target: String,
 }
@@ -540,7 +539,6 @@ impl Build {
 
         Artifacts {
             lib_dir: install_dir.join("lib"),
-            bin_dir: install_dir.join("bin"),
             include_dir: install_dir.join("include"),
             libs: libs,
             target: target.to_string(),
