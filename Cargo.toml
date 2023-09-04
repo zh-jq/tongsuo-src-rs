@@ -10,6 +10,7 @@ Source of Tongsuo and logic to build it.
 exclude = [
   'tongsuo/fuzz/corpora/*',
   'tongsuo/test/recipes/*',
+  'tongsuo/rpm/*',
 ]
 
 [features]
