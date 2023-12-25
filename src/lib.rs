@@ -1,7 +1,7 @@
 extern crate cc;
 
 use std::env;
-use std::ffi::OsStr;
+use std::ffi::{OsStr, OsString};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -18,6 +18,8 @@ pub struct Build {
     out_dir: Option<PathBuf>,
     target: Option<String>,
     host: Option<String>,
+    // Only affects non-windows builds for now.
+    openssl_dir: Option<PathBuf>,
 }
 
 pub struct Artifacts {
@@ -33,6 +35,7 @@ impl Build {
             out_dir: env::var_os("OUT_DIR").map(|s| PathBuf::from(s).join("tongsuo-build")),
             target: env::var("TARGET").ok(),
             host: env::var("HOST").ok(),
+            openssl_dir: Some(PathBuf::from("/usr/local/ssl")),
         }
     }
 
@@ -48,6 +51,11 @@ impl Build {
 
     pub fn host(&mut self, host: &str) -> &mut Build {
         self.host = Some(host.to_string());
+        self
+    }
+
+    pub fn openssl_dir<P: AsRef<Path>>(&mut self, path: P) -> &mut Build {
+        self.openssl_dir = Some(path.as_ref().to_path_buf());
         self
     }
 
@@ -138,17 +146,33 @@ impl Build {
         // Change the install directory to happen inside of the build directory.
         if host.contains("pc-windows-gnu") {
             configure.arg(&format!("--prefix={}", sanitize_sh(&install_dir)));
+        } else if host.contains("pc-windows-msvc") {
+            // On Windows, the prefix argument does not support \ path seperators
+            // when cross compiling.
+            // Always use / as a path seperator instead of \, since that works for both
+            // native and cross builds.
+            configure.arg(&format!(
+                "--prefix={}",
+                install_dir.to_str().unwrap().replace("\\", "/")
+            ));
         } else {
             configure.arg(&format!("--prefix={}", install_dir.display()));
         }
 
         // Specify that openssl directory where things are loaded at runtime is
         // not inside our build directory. Instead this should be located in the
-        // default locations of the OpenSSL build scripts.
+        // default locations of the OpenSSL build scripts, or as specified by whatever
+        // configured this builder.
         if target.contains("windows") {
             configure.arg("--openssldir=SYS$MANAGER:[OPENSSL]");
         } else {
-            configure.arg("--openssldir=/usr/local/ssl");
+            let openssl_dir = self
+                .openssl_dir
+                .as_ref()
+                .expect("path to the openssl directory must be set");
+            let mut dir_arg: OsString = "--openssldir=".into();
+            dir_arg.push(openssl_dir);
+            configure.arg(dir_arg);
         }
 
         configure
@@ -231,6 +255,7 @@ impl Build {
             "aarch64-unknown-freebsd" => "BSD-generic64",
             "aarch64-unknown-linux-gnu" => "linux-aarch64",
             "aarch64-unknown-linux-musl" => "linux-aarch64",
+            "aarch64-alpine-linux-musl" => "linux-aarch64",
             "aarch64-unknown-netbsd" => "BSD-generic64",
             "aarch64_be-unknown-netbsd" => "BSD-generic64",
             "aarch64-pc-windows-msvc" => "VC-WIN64-ARM",
@@ -244,15 +269,18 @@ impl Build {
             "armv5te-unknown-linux-gnueabi" => "linux-armv4",
             "armv5te-unknown-linux-musleabi" => "linux-armv4",
             "armv6-unknown-freebsd" => "BSD-generic32",
+            "armv6-alpine-linux-musleabihf" => "linux-armv6",
             "armv7-unknown-freebsd" => "BSD-armv4",
             "armv7-unknown-linux-gnueabi" => "linux-armv4",
             "armv7-unknown-linux-musleabi" => "linux-armv4",
             "armv7-unknown-linux-gnueabihf" => "linux-armv4",
             "armv7-unknown-linux-musleabihf" => "linux-armv4",
+            "armv7-alpine-linux-musleabihf" => "linux-armv4",
             "armv7-unknown-netbsd-eabihf" => "BSD-generic32",
             "asmjs-unknown-emscripten" => "gcc",
             "i586-unknown-linux-gnu" => "linux-elf",
             "i586-unknown-linux-musl" => "linux-elf",
+            "i586-alpine-linux-musl" => "linux-elf",
             "i586-unknown-netbsd" => "BSD-x86-elf",
             "i686-apple-darwin" => "darwin-i386-cc",
             "i686-linux-android" => "linux-elf",
@@ -264,7 +292,7 @@ impl Build {
             "i686-unknown-linux-musl" => "linux-elf",
             "i686-unknown-netbsd" => "BSD-x86-elf",
             "i686-uwp-windows-msvc" => "VC-WIN32-UWP",
-            "loongarch64-unknown-linux-gnu" => "linux64-loongarch64",
+            "loongarch64-unknown-linux-gnu" => "linux-generic64",
             "mips-unknown-linux-gnu" => "linux-mips32",
             "mips-unknown-linux-musl" => "linux-mips32",
             "mips64-unknown-linux-gnuabi64" => "linux64-mips64",
@@ -283,13 +311,16 @@ impl Build {
             "powerpc64le-unknown-freebsd" => "BSD-ppc64le",
             "powerpc64le-unknown-linux-gnu" => "linux-ppc64le",
             "powerpc64le-unknown-linux-musl" => "linux-ppc64le",
+            "powerpc64le-alpine-linux-musl" => "linux-ppc64le",
             "riscv64gc-unknown-freebsd" => "BSD-riscv64",
             "riscv64gc-unknown-linux-gnu" => "linux-generic64",
             "riscv64gc-unknown-linux-musl" => "linux-generic64",
+            "riscv64-alpine-linux-musl" => "linux-generic64",
             "riscv64gc-unknown-netbsd" => "BSD-generic64",
             "s390x-unknown-linux-gnu" => "linux64-s390x",
             "sparc64-unknown-netbsd" => "BSD-generic64",
             "s390x-unknown-linux-musl" => "linux64-s390x",
+            "s390x-alpine-linux-musl" => "linux64-s390x",
             "sparcv9-sun-solaris" => "solaris64-sparcv9-gcc",
             "thumbv7a-uwp-windows-msvc" => "VC-WIN32-ARM-UWP",
             "x86_64-apple-darwin" => "darwin64-x86_64-cc",
@@ -303,6 +334,7 @@ impl Build {
             "x86_64-unknown-illumos" => "solaris64-x86_64-gcc",
             "x86_64-unknown-linux-gnu" => "linux-x86_64",
             "x86_64-unknown-linux-musl" => "linux-x86_64",
+            "x86_64-alpine-linux-musl" => "linux-x86_64",
             "x86_64-unknown-openbsd" => "BSD-x86_64",
             "x86_64-unknown-netbsd" => "BSD-x86_64",
             "x86_64-uwp-windows-msvc" => "VC-WIN64A-UWP",
@@ -633,8 +665,8 @@ impl Artifacts {
         }
         println!("cargo:include={}", self.include_dir.display());
         println!("cargo:lib={}", self.lib_dir.display());
-        if self.target.contains("msvc") {
-            println!("cargo:rustc-link-lib=user32");
+        if self.target.contains("windows") {
+            println!("cargo:rustc-link-lib=crypt32");
         } else if self.target == "wasm32-wasi" {
             println!("cargo:rustc-link-lib=wasi-emulated-signal");
             println!("cargo:rustc-link-lib=wasi-emulated-process-clocks");
