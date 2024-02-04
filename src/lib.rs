@@ -192,16 +192,6 @@ impl Build {
             // Avoid multilib-postfix for build targets that specify it
             .arg("--libdir=lib");
 
-        if cfg!(not(feature = "legacy")) {
-            configure.arg("no-legacy");
-        }
-
-        if cfg!(feature = "weak-crypto") {
-            configure.arg("enable-rc5").arg("enable-weak-ssl-ciphers");
-        } else {
-            configure.arg("no-rc5").arg("no-weak-ssl-ciphers");
-        }
-
         if target.contains("musl") {
             // Engine module fails to compile on musl (it needs linux/version.h
             // right now) but we don't actually need this most of the time.
