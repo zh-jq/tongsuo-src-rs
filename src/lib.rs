@@ -185,6 +185,8 @@ impl Build {
             .arg("no-tests")
             // Nothing related to zlib please
             .arg("no-comp")
+            // No legacy features
+            .arg("no-legacy")
             .arg("no-zlib")
             .arg("no-zlib-dynamic")
             .arg("enable-ntls")
