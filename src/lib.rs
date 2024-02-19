@@ -553,8 +553,7 @@ fn apply_patches_musl(target: &str, inner: &Path) {
     let path = inner.join("crypto/rand/rand_unix.c");
     let buf = fs::read_to_string(&path).unwrap();
 
-    let buf = buf
-        .replace("__NR_getrandom", "SYS_getrandom");
+    let buf = buf.replace("__NR_getrandom", "SYS_getrandom");
 
     fs::write(path, buf).unwrap();
 }
