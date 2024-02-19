@@ -1,9 +1,9 @@
 name: CI
 on:
   push:
-    branches: [master, release/111]
+    branches: [master, stable-8.3]
   pull_request:
-    branches: [master, release/111]
+    branches: [master, stable-8.3]
 
 defaults:
   run:
